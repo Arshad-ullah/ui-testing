@@ -29,7 +29,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    roomId = [widget.currentUserId, widget.userB].join('_');
+    roomId = ([widget.currentUserId, widget.userB]..sort()).join('_');
     initChat();
   }
 
