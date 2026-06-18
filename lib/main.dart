@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ui_testing/features/presentation/search_screen.dart';
+import 'package:ui_testing/core/services/socket.dart';
+import 'package:ui_testing/features/chat/inbox.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  SocketService.init();
   runApp(ProviderScope(child: const MyApp()));
 }
 
@@ -15,7 +19,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Flutter Demo',
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
-      home: SearchScreen(),
+      home: UsersScreen(),
     );
   }
 }

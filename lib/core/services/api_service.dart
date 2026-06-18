@@ -2,11 +2,12 @@ import 'dart:convert';
 import 'dart:developer';
 
 import 'package:http/http.dart' as http;
+import 'package:ui_testing/core/models/user_modeld.dart';
 import 'package:ui_testing/features/data/model/student.dart';
 
 class ApiService {
   // TODO: Change this to your actual backend URL
-  static const String baseUrl = 'http://localhost:8000/v2';
+  static const String baseUrl = 'http://localhost:8000';
 
   static const Map<String, String> _headers = {
     'Content-Type': 'application/json',
@@ -133,6 +134,48 @@ class ApiService {
       }
     } catch (e) {
       return ApiResponse.error('Connection error: ${e.toString()}');
+    }
+  }
+
+  static Future<ApiResponse<List<dynamic>>> getChat(
+    String userA,
+    String userB,
+  ) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/chat/$userA/$userB'));
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200) {
+        return ApiResponse.success(data['data']);
+      } else {
+        return ApiResponse.error('Failed to load chat');
+      }
+    } catch (e) {
+      return ApiResponse.error(e.toString());
+    }
+  }
+
+  static Future<ApiResponse<List<UserModel>>> getUsers() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users'),
+        headers: _headers,
+      );
+
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        final users = (data['users'] as List)
+            .map((e) => UserModel.fromJson(e))
+            .toList();
+
+        return ApiResponse.success(users);
+      }
+
+      return ApiResponse.error(data['message'] ?? 'Failed');
+    } catch (e) {
+      return ApiResponse.error(e.toString());
     }
   }
 }
