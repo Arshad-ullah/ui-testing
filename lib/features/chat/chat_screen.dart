@@ -80,7 +80,7 @@ class _ChatScreenState extends State<ChatScreen> {
       "roomId": roomId,
       "senderId": widget.currentUserId,
       "message": text,
-      "timestamp": DateTime.now().toIso8601String(),
+      // "timestamp": DateTime.now().toIso8601String(),
     };
 
     // send via socket
