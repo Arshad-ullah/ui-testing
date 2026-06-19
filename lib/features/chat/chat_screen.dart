@@ -180,15 +180,17 @@ class _ChatScreenState extends State<ChatScreen> {
                           CircleAvatar(
                             radius: 16,
                             backgroundColor: Colors.grey.shade400,
-                            child: Text(
-                              (msg['senderId']?.toString().substring(0, 1) ??
-                                      '?')
-                                  .toUpperCase(),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                              ),
-                            ),
+                            child: Icon(Icons.person),
+
+                            // Text(
+                            //   (msg['senderId']?.toString().substring(0, 1) ??
+                            //           '?')
+                            //       .toUpperCase(),
+                            //   style: const TextStyle(
+                            //     color: Colors.white,
+                            //     fontSize: 12,
+                            //   ),
+                            // ),
                           ),
                           const SizedBox(width: 8),
                         ],
