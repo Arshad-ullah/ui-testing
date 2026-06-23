@@ -109,7 +109,7 @@ class _FeedScreenState extends State<FeedScreen> {
           ],
         ),
         child: TextField(
-          // controller: _searchController,
+          controller: _searchController,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
             hintText: 'Search posts, people, tags...',
