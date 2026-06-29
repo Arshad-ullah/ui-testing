@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ui_testing/core/services/postgr.dart';
 import 'package:ui_testing/core/services/socket.dart';
 import 'package:ui_testing/features/chat/feed_screen.dart';
 
@@ -7,6 +8,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   SocketService.init();
+
+  final db = await DatabaseService.connect();
+
+  final result = await db.execute('select * from students');
+
   runApp(ProviderScope(child: const MyApp()));
 }
 

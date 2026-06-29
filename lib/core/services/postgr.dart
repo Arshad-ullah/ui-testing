@@ -10,10 +10,11 @@ class DatabaseService {
       Endpoint(
         host: 'localhost',
         port: 5432,
-        database: "students",
-        username: "MAC",
-        password: "1234",
+        database: 'students',
+        username: 'MAC',
+        password: '1234',
       ),
+      settings: ConnectionSettings(sslMode: SslMode.disable),
     );
 
     return _connection!;
