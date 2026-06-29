@@ -66,5 +66,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+<key>NSFaceIDUsageDescription</key>
+<string>This app uses Face ID/Touch ID to authenticate you</string>
 </dict>
 </plist>

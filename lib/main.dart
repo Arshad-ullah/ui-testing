@@ -1,17 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:ui_testing/core/services/postgr.dart';
-import 'package:ui_testing/core/services/socket.dart';
-import 'package:ui_testing/features/chat/feed_screen.dart';
+import 'package:ui_testing/features/chat/finger_print.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  SocketService.init();
+  // SocketService.init();
 
-  final db = await DatabaseService.connect();
+  // final db = await DatabaseService.connect();
 
-  final result = await db.execute('select * from students');
+  // final result = await db.execute('select * from students');
 
   runApp(ProviderScope(child: const MyApp()));
 }
@@ -26,7 +24,7 @@ class MyApp extends StatelessWidget {
       title: 'Flutter Demo',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorScheme: .fromSeed(seedColor: Colors.deepPurple)),
-      home: FeedScreen(),
+      home: FingerprintLoginScreen(),
     );
   }
 }
