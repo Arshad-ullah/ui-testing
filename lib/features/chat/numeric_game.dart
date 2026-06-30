@@ -1,18 +1,23 @@
 // number_logic_game.dart
 //
 // A self-contained "Number Logic" mini-game for a kids' IQ-training app.
-// Drop this file into your Flutter project (lib/games/number_logic_game.dart)
-// and navigate to `const NumberLogicGame()` from anywhere.
+// Drop into lib/games/number_logic_game.dart and push `const NumberLogicGame()`.
 //
-// Features:
-//  - Two question types: number sequences (2 4 6 8 ?) and simple arithmetic (5 + 3 = ?)
-//  - Adaptive difficulty: gets harder as the child answers correctly, easier after mistakes
-//  - Multiple-choice answers (easier for young kids than typing) with big tappable cards
-//  - Stars / streak system + animated feedback (no harsh "WRONG" buzzers)
-//  - Lives system so a session always has a clear, friendly end
-//  - Clean, colorful, rounded UI with subtle animations
-//
-// No external packages required — pure Flutter SDK.
+// FIXES in this version (vs. the previous draft):
+//  1. Answer cards now have a stable, question-unique Key. Previously Flutter
+//     reused the same widget slot across questions (since GridView children
+//     had no Key), so on the 2nd+ question the AnimatedContainer sometimes
+//     kept old colors/text mid-transition instead of resetting cleanly.
+//  2. Added an `_answering` lock so rapid double-taps can't fire two answers
+//     at once and desync state (this looked like a "hang").
+//  3. Wrapped the question + options in a SingleChildScrollView so a long
+//     prompt (e.g. big multiplication numbers) can't overflow and silently
+//     break layout on smaller screens.
+//  4. Timer-based delay (cancelable) instead of a bare `Future.delayed`, so
+//     leftover timers from a previous question can never fire late and
+//     corrupt state after rapid taps.
+//  5. Animation now uses `addPostFrameCallback` so `forward(from: 0)` never
+//     races with the widget tree still being built.
 
 import 'dart:async';
 import 'dart:math';
@@ -20,33 +25,35 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+/// ---------------------------------------------------------------------
+/// QUESTION MODEL
+/// ---------------------------------------------------------------------
+
 enum QuestionType { sequence, arithmetic }
 
 class NumberQuestion {
   final QuestionType type;
-  final String prompt; // e.g. "2  4  6  8  ?"  or  "5 + 3 = ?"
+  final String prompt;
   final int answer;
   final List<int> options;
+  final int id; // unique per generated question, used for Keys & animations
 
   NumberQuestion({
     required this.type,
     required this.prompt,
     required this.answer,
     required this.options,
+    required this.id,
   });
 }
 
 /// ---------------------------------------------------------------------
 /// QUESTION GENERATOR (adaptive difficulty)
 /// ---------------------------------------------------------------------
-///
-/// difficulty roughly ranges 1 (easiest) .. 10 (hardest).
-/// Sequences: step size & starting number grow with difficulty,
-/// occasionally introduces subtraction or multiplication-style steps.
-/// Arithmetic: operand size and operator complexity grow with difficulty.
 
 class QuestionGenerator {
   final Random _rng = Random();
+  int _counter = 0;
 
   NumberQuestion generate(int difficulty) {
     final useSequence = _rng.nextBool();
@@ -56,14 +63,13 @@ class QuestionGenerator {
   }
 
   NumberQuestion _generateSequence(int difficulty) {
-    // Step size grows with difficulty; occasionally negative (counting down).
-    final maxStep = 1 + (difficulty / 2).ceil(); // 1..6ish
+    final maxStep = 1 + (difficulty / 2).ceil();
     int step = 1 + _rng.nextInt(maxStep);
     final descending = difficulty > 3 && _rng.nextBool();
     if (descending) step = -step;
 
     final start = 1 + _rng.nextInt(5 + difficulty * 2);
-    final length = 4; // show 4 numbers, ask for the 5th
+    const length = 4;
     final seq = List<int>.generate(length, (i) => start + step * i);
     final answer = start + step * length;
 
@@ -75,20 +81,16 @@ class QuestionGenerator {
       prompt: prompt,
       answer: answer,
       options: options,
+      id: _counter++,
     );
   }
 
   NumberQuestion _generateArithmetic(int difficulty) {
-    // Pick operator based on difficulty.
-    final ops = difficulty < 3
-        ? ['+', '-']
-        : difficulty < 6
-        ? ['+', '-', '×']
-        : ['+', '-', '×'];
+    final ops = difficulty < 3 ? ['+', '-'] : ['+', '-', '×'];
     final op = ops[_rng.nextInt(ops.length)];
 
     int a, b, answer;
-    final maxVal = 5 + difficulty * 3; // grows with difficulty
+    final maxVal = 5 + difficulty * 3;
 
     switch (op) {
       case '+':
@@ -98,7 +100,7 @@ class QuestionGenerator {
         break;
       case '-':
         a = 1 + _rng.nextInt(maxVal) + 5;
-        b = 1 + _rng.nextInt(a); // ensure non-negative result
+        b = 1 + _rng.nextInt(a);
         answer = a - b;
         break;
       case '×':
@@ -120,15 +122,23 @@ class QuestionGenerator {
       prompt: prompt,
       answer: answer,
       options: options,
+      id: _counter++,
     );
   }
 
   List<int> _buildOptions(int answer, {int spread = 3}) {
     final set = <int>{answer};
-    while (set.length < 4) {
+    var guard = 0;
+    while (set.length < 4 && guard < 200) {
+      guard++;
       final delta = (1 + _rng.nextInt(spread)) * (_rng.nextBool() ? 1 : -1);
       final candidate = answer + delta;
       if (candidate >= 0) set.add(candidate);
+    }
+    // Safety net: if we somehow couldn't fill 4 unique options, pad simply.
+    var filler = answer + 100;
+    while (set.length < 4) {
+      set.add(filler++);
     }
     final list = set.toList()..shuffle(_rng);
     return list;
@@ -159,6 +169,9 @@ class _NumberLogicGameState extends State<NumberLogicGame>
   bool _showFeedback = false;
   bool _wasCorrect = false;
   bool _gameOver = false;
+  bool _answering = false; // tap-lock to prevent double answers / races
+
+  Timer? _advanceTimer;
 
   late AnimationController _promptController;
   late Animation<double> _promptScale;
@@ -174,42 +187,52 @@ class _NumberLogicGameState extends State<NumberLogicGame>
       parent: _promptController,
       curve: Curves.elasticOut,
     );
-    _nextQuestion();
+    _question = _generator.generate(_difficulty);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _promptController.forward(from: 0);
+    });
   }
 
   @override
   void dispose() {
+    _advanceTimer?.cancel();
     _promptController.dispose();
     super.dispose();
   }
 
   void _nextQuestion() {
+    if (!mounted) return;
     setState(() {
       _question = _generator.generate(_difficulty);
       _selectedOption = null;
       _showFeedback = false;
+      _answering = false;
     });
     _promptController.forward(from: 0);
   }
 
   void _restart() {
+    _advanceTimer?.cancel();
     setState(() {
       _difficulty = 2;
       _streak = 0;
       _stars = 0;
       _lives = 3;
       _gameOver = false;
+      _answering = false;
     });
     _nextQuestion();
   }
 
-  Future<void> _onAnswer(int option) async {
-    if (_showFeedback || _gameOver) return;
+  void _onAnswer(int option) {
+    // Lock out further taps until this question fully resolves.
+    if (_showFeedback || _gameOver || _answering) return;
 
     final correct = option == _question.answer;
     HapticFeedback.lightImpact();
 
     setState(() {
+      _answering = true;
       _selectedOption = option;
       _showFeedback = true;
       _wasCorrect = correct;
@@ -218,25 +241,24 @@ class _NumberLogicGameState extends State<NumberLogicGame>
     if (correct) {
       _streak++;
       _stars++;
-      // Increase difficulty every 2 correct in a row, cap at 10.
       if (_streak % 2 == 0) {
         _difficulty = min(10, _difficulty + 1);
       }
     } else {
       _streak = 0;
       _lives--;
-      // Ease difficulty back down a bit so it doesn't feel punishing.
       _difficulty = max(1, _difficulty - 1);
     }
 
-    await Future.delayed(const Duration(milliseconds: 900));
-    if (!mounted) return;
-
-    if (_lives <= 0) {
-      setState(() => _gameOver = true);
-    } else {
-      _nextQuestion();
-    }
+    _advanceTimer?.cancel();
+    _advanceTimer = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      if (_lives <= 0) {
+        setState(() => _gameOver = true);
+      } else {
+        _nextQuestion();
+      }
+    });
   }
 
   @override
@@ -246,14 +268,13 @@ class _NumberLogicGameState extends State<NumberLogicGame>
     );
   }
 
-  // ---------------- UI: top bar (lives, stars, streak, difficulty) ------
+  // ---------------- UI: top bar ----------------
 
   Widget _buildTopBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
       child: Row(
         children: [
-          // Lives as hearts
           Row(
             children: List.generate(3, (i) {
               final filled = i < _lives;
@@ -268,7 +289,6 @@ class _NumberLogicGameState extends State<NumberLogicGame>
             }),
           ),
           const Spacer(),
-          // Difficulty indicator (kid-friendly: stars-of-difficulty bar)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
@@ -297,7 +317,6 @@ class _NumberLogicGameState extends State<NumberLogicGame>
             ),
           ),
           const Spacer(),
-          // Stars collected
           Row(
             children: [
               const Icon(
@@ -355,6 +374,7 @@ class _NumberLogicGameState extends State<NumberLogicGame>
   Widget _buildQuestionCard() {
     final isSequence = _question.type == QuestionType.sequence;
     return ScaleTransition(
+      key: ValueKey('card_${_question.id}'),
       scale: Tween<double>(begin: 0.85, end: 1.0).animate(_promptScale),
       child: Container(
         width: double.infinity,
@@ -382,6 +402,7 @@ class _NumberLogicGameState extends State<NumberLogicGame>
           ],
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               isSequence ? 'What comes next?' : 'Solve it!',
@@ -393,14 +414,19 @@ class _NumberLogicGameState extends State<NumberLogicGame>
               ),
             ),
             const SizedBox(height: 14),
-            Text(
-              _question.prompt,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 34,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
+            // FittedBox prevents overflow if a prompt is unusually wide
+            // (e.g. large multiplication results at high difficulty).
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                _question.prompt,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 34,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
+                ),
               ),
             ),
           ],
@@ -415,6 +441,10 @@ class _NumberLogicGameState extends State<NumberLogicGame>
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 28, 24, 12),
       child: GridView.count(
+        // Unique key per question so the whole grid (and its children)
+        // is rebuilt fresh instead of Flutter trying to diff/reuse old
+        // AnimatedContainers from the previous question.
+        key: ValueKey('grid_${_question.id}'),
         crossAxisCount: 2,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
@@ -442,9 +472,11 @@ class _NumberLogicGameState extends State<NumberLogicGame>
           }
 
           return GestureDetector(
+            // Unique key per option card within this question.
+            key: ValueKey('opt_${_question.id}_$opt'),
             onTap: () => _onAnswer(opt),
             child: AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
+              duration: const Duration(milliseconds: 200),
               decoration: BoxDecoration(
                 color: bg,
                 borderRadius: BorderRadius.circular(20),
@@ -504,15 +536,21 @@ class _NumberLogicGameState extends State<NumberLogicGame>
   }
 
   Widget _buildGame() {
-    return Column(
-      children: [
-        _buildTopBar(),
-        _buildStreakBanner(),
-        const SizedBox(height: 12),
-        _buildQuestionCard(),
-        _buildOptions(),
-        _buildFeedback(),
-      ],
+    // SingleChildScrollView guards against overflow on small screens or
+    // unusually long prompts — previously this could silently break layout
+    // and look like the UI had "frozen" on certain questions.
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          _buildTopBar(),
+          _buildStreakBanner(),
+          const SizedBox(height: 12),
+          _buildQuestionCard(),
+          _buildOptions(),
+          _buildFeedback(),
+          const SizedBox(height: 12),
+        ],
+      ),
     );
   }
 
