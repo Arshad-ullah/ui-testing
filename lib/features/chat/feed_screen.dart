@@ -499,6 +499,8 @@ class _FeedDetailDialogState extends State<FeedDetailDialog> {
                             onTap: null,
                           ),
                           const Spacer(),
+
+                          
                           _RoundIconButton(
                             icon: _saved
                                 ? Icons.bookmark_rounded
