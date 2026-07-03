@@ -73,7 +73,15 @@ class QuestionGenerator {
     final seq = List<int>.generate(length, (i) => start + step * i);
     final answer = start + step * length;
 
-    final prompt = '${seq.join('   ')}   ?';
+    final opSymbol = step >= 0 ? '+' : '−';
+    final opAbs = step.abs();
+    final buffer = StringBuffer();
+    for (var i = 0; i < seq.length; i++) {
+      buffer.write(seq[i]);
+      buffer.write('  $opSymbol$opAbs  ');
+    }
+    buffer.write('?');
+    final prompt = buffer.toString();
     final options = _buildOptions(answer, spread: step.abs().clamp(1, 12));
 
     return NumberQuestion(
