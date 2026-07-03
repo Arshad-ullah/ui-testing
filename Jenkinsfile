@@ -27,9 +27,13 @@ pipeline {
         }
 
         stage('Deploy') {
-            steps {
-                echo 'APK built successfully.'
-            }
-        }
+         steps {
+          emailext(
+            to: 'jahan665577@gmail.com',
+            subject: 'APK Build Successful',
+            body: 'Hi,\n\nAPK created successfully.\n\nRegards,\nJenkins'
+        )
+    }
+}
     }
 }
