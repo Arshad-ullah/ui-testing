@@ -28,12 +28,9 @@ pipeline {
 
         stage('Deploy') {
          steps {
-          emailext(
-            to: 'jahan665577@gmail.com',
-            subject: 'APK Build Successful',
-            body: 'Hi,\n\nAPK created successfully.\n\nRegards,\nJenkins'
-        )
-    }
+
+            slackSend channel: '#ai-team', message: "Build and Test completed successfully. Ready for deployment."
+            }
 }
     }
 }
