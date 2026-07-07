@@ -1,4 +1,4 @@
-package com.example.ui_testing
+package com.arshad.ui_testing
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 
