@@ -4,7 +4,7 @@ pipeline {
 
     environment {
         FIREBASE_APP_ID = '1:520200426032:android:d5570b33c7fd8abf0413f5'
-        FIREBASE_TOKEN  = credentials('firebase-token')   // Replace with your Jenkins Credential ID
+        FIREBASE_TOKEN  = credentials('firebase-token')  
     }
 
     stages {
@@ -53,17 +53,5 @@ pipeline {
         }
     }
 
-    post {
-        success {
-            echo 'Pipeline completed successfully.'
-        }
-
-        failure {
-            slackSend(
-                channel: '#ai-team',
-                color: 'danger',
-                message: "❌ Jenkins Build #${BUILD_NUMBER} failed."
-            )
-        }
-    }
+   
 }
