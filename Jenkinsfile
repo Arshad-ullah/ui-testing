@@ -39,22 +39,32 @@ stage('Debug') {
         '''
     }
 }
-        stage('Start Android Emulator') {
-            steps {
-                
-  sh '''
-$ANDROID_HOME/emulator/emulator -avd Tablet -no-window -no-audio &
+      
 
-$ANDROID_HOME/platform-tools/adb wait-for-device
+stage('Start Emulator') {
+    steps {
+        sh '''
+        if ! $ANDROID_HOME/platform-tools/adb devices | grep -q "emulator"; then
+            echo "Starting Tablet emulator..."
 
-until [ "$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed | tr -d "\\r")" = "1" ]; do
-    sleep 5
-done
+            $ANDROID_HOME/emulator/emulator \
+                -avd Tablet \
+                -no-window \
+                -no-audio &
 
-flutter devices
-'''
-            }
-        }
+            $ANDROID_HOME/platform-tools/adb wait-for-device
+
+            until [ "$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed | tr -d "\\r")" = "1" ]; do
+                sleep 5
+            done
+        else
+            echo "Emulator already running."
+        fi
+
+        flutter devices
+        '''
+    }
+}
 
         stage('Run Tests') {
             steps {
