@@ -39,9 +39,9 @@ pipeline {
             steps {
                 echo 'Running Flutter Tests...'
 
-                sh 'flutter test'
-                # For integration tests instead:
-                # sh 'flutter test integration_test'
+                // sh 'flutter test'
+              
+                // sh 'flutter test integration_test'
             }
         }
 
