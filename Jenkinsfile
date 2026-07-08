@@ -42,12 +42,12 @@ stage('Debug') {
         stage('Start Android Emulator') {
             steps {
                 
-                sh '''
-$ANDROID_HOME/emulator/emulator -avd Pixel_6_API_35 -no-window -no-audio &
+  sh '''
+$ANDROID_HOME/emulator/emulator -avd Tablet -no-window -no-audio &
 
 $ANDROID_HOME/platform-tools/adb wait-for-device
 
-until $ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed | grep -m 1 "1"; do
+until [ "$($ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed | tr -d "\\r")" = "1" ]; do
     sleep 5
 done
 
